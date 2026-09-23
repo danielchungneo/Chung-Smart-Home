@@ -54,6 +54,7 @@ Runtime: Vercel Node.js serverless functions (Node 18+, global `fetch`). No depe
 | `REDIRECT_URI` | `https://YOUR-PROJECT.vercel.app/api/callback` (must match the Spotify app exactly) |
 | `SPOTIFY_REFRESH_TOKEN` | Shown on the `/api/callback` page after step 6 |
 | `DEVICE_NAME` | Exact speaker name as shown in Spotify's device picker |
+| `VOLUME_PERCENT` | Optional. 0–100; applied on every `/api/play` (not in the tag URL) |
 | `CRON_SECRET` | Long random string; required to call `/api/keepalive` (Vercel Cron sends it automatically when set) |
 
 After adding or changing any variable, redeploy (Deployments → ⋯ → Redeploy).
@@ -115,7 +116,7 @@ Set `CRON_SECRET`; Vercel will call the path with that Bearer token automaticall
 - [ ] Copy the Client ID and Client Secret.
 
 ### 5. Add environment variables
-- [ ] Add `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `REDIRECT_URI`, `DEVICE_NAME`.
+- [ ] Add `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `REDIRECT_URI`, `DEVICE_NAME`, and optionally `VOLUME_PERCENT` (e.g. `40`).
 - [ ] Redeploy.
 
 ### 6. Authorize once

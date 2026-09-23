@@ -55,6 +55,15 @@ export default async function handler(req, res) {
       method: 'POST', headers,
     });
 
+    // Optional default volume from env (0–100). Same for every tag URL.
+    const volume = Number(process.env.VOLUME_PERCENT);
+    if (Number.isInteger(volume) && volume >= 0 && volume <= 100) {
+      await fetch(
+        `https://api.spotify.com/v1/me/player/volume?volume_percent=${volume}&device_id=${id}`,
+        { method: 'PUT', headers },
+      );
+    }
+
     res.send(page('Now playing', `${name} on ${device.name}. You can put your phone away.`));
   } catch (e) {
     res.status(500).send(page('Couldn’t start music', e.message));
