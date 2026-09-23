@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       );
     }
 
-    res.send(page('Now playing', `${name} on ${device.name}. You can put your phone away.`));
+    res.send(page('Now playing', `${name} on ${device.name}. You can put your phone away.`, { dance: true }));
   } catch (e) {
     res.status(500).send(page('Couldn’t start music', e.message));
   }
