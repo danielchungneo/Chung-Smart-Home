@@ -16,6 +16,7 @@ function authorized(req) {
   return bearer === secret || queryKey === secret;
 }
 
+
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
