@@ -23,6 +23,7 @@ spotify-nfc/
 ├── api/
 │   ├── _spotify.js    # shared helpers (underscore = not a public route on Vercel)
 │   ├── play.js        # the endpoint the NFC tags point to; playlist ID comes from the URL
+│   ├── keepalive.js   # optional: touch DEVICE_NAME so it stays in Spotify's device list
 │   ├── devices.js     # lists Spotify Connect devices
 │   ├── login.js       # one-time setup: redirect to Spotify authorization
 │   └── callback.js    # one-time setup: exchanges code, displays refresh token
@@ -53,8 +54,39 @@ Runtime: Vercel Node.js serverless functions (Node 18+, global `fetch`). No depe
 | `REDIRECT_URI` | `https://YOUR-PROJECT.vercel.app/api/callback` (must match the Spotify app exactly) |
 | `SPOTIFY_REFRESH_TOKEN` | Shown on the `/api/callback` page after step 6 |
 | `DEVICE_NAME` | Exact speaker name as shown in Spotify's device picker |
+| `CRON_SECRET` | Long random string; required to call `/api/keepalive` (Vercel Cron sends it automatically when set) |
 
 After adding or changing any variable, redeploy (Deployments → ⋯ → Redeploy).
+
+## Keepalive cron (optional, best-effort)
+
+`/api/keepalive` tries to keep `DEVICE_NAME` in Spotify's Connect list by transferring playback to it (without starting music) every few minutes. It **cannot wake** a Google Home that has already dropped off the list — only reduce how often that happens while the speaker is still visible. It will not steal playback if your phone/computer is actively playing.
+
+**Auth:** `Authorization: Bearer <CRON_SECRET>` or `?key=<CRON_SECRET>`.
+
+### Schedule every 5 minutes (Hobby / free)
+
+Vercel Hobby only allows **once-per-day** built-in crons, so use a free external scheduler:
+
+1. Add `CRON_SECRET` in Vercel env vars and redeploy.
+2. At [cron-job.org](https://cron-job.org) (or similar), create a job every 5 minutes.
+3. URL: `https://YOUR-PROJECT.vercel.app/api/keepalive`
+4. Request header: `Authorization` = `Bearer YOUR_CRON_SECRET`
+
+Manual test:
+`https://YOUR-PROJECT.vercel.app/api/keepalive?key=YOUR_CRON_SECRET`
+
+### Vercel Pro (optional)
+
+Add `vercel.json` with:
+
+```json
+{
+  "crons": [{ "path": "/api/keepalive", "schedule": "*/5 * * * *" }]
+}
+```
+
+Set `CRON_SECRET`; Vercel will call the path with that Bearer token automatically.
 
 ## Setup checklist
 
