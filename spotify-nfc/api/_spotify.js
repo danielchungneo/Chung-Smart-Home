@@ -27,6 +27,26 @@ export async function getDevices(token) {
   return data.devices || [];
 }
 
+// Asks the always-on home laptop (through its Tailscale Funnel URL) to wake
+// the Google Home over the LAN. The laptop replies once Spotify lists the
+// speaker again. Returns true on success, false if not configured or it failed.
+export async function wakeSpeaker() {
+  const url = process.env.WAKE_URL;
+  const secret = process.env.WAKE_SECRET;
+  if (!url || !secret) return false;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(25000),
+    });
+    const data = await r.json().catch(() => ({}));
+    return r.ok && data.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 const DANCING_PANDA = `
 <div class="stage" aria-hidden="true">
   <span class="note n1">♪</span>

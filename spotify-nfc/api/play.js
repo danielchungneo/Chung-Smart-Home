@@ -1,7 +1,7 @@
 // The URL that goes on each NFC tag:
 //   https://YOUR-PROJECT.vercel.app/api/play?playlist=PLAYLIST_ID
 // Optional: &name=Dinner  (shown on the "Now playing" page)
-import { getAccessToken, getDevices, page } from './_spotify.js';
+import { getAccessToken, getDevices, page, wakeSpeaker } from './_spotify.js';
 
 // Spotify playlist IDs are base62 (letters, digits). Reject anything else.
 const PLAYLIST_ID = /^[A-Za-z0-9]{10,40}$/;
@@ -19,15 +19,23 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
-    const devices = await getDevices(token);
+    let devices = await getDevices(token);
     const wanted = (process.env.DEVICE_NAME || '').toLowerCase();
-    const device =
-      devices.find(d => d.name.toLowerCase() === wanted) ||
-      devices.find(d => d.is_active);
+    const findWanted = list => list.find(d => d.name.toLowerCase() === wanted);
+    let device = findWanted(devices);
+
+    // The Google Home drops out of Spotify Connect when idle. Ask the home
+    // laptop to wake it, then play right away: the speaker's Spotify app quits
+    // ~30 s after waking if nothing starts playing.
+    if (!device && await wakeSpeaker()) {
+      devices = await getDevices(token);
+      device = findWanted(devices);
+    }
+    device = device || devices.find(d => d.is_active);
 
     if (!device) {
       return res.send(page('Speaker is asleep',
-        'Open Spotify, cast to the speaker once, then tap the tag again.'));
+        'Couldn’t wake it. Check the home laptop is on, then tap the tag again.'));
     }
 
     const headers = { Authorization: `Bearer ${token}` };

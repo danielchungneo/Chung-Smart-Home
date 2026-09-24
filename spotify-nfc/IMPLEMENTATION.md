@@ -8,13 +8,13 @@ Guests need no app, no Shortcut, no Wi-Fi, and no Spotify account.
 1. The NFC tag stores a plain URL: `https://YOUR-PROJECT.vercel.app/api/play?playlist=<id>`
 2. The phone opens that URL in its browser (iPhone: tap the banner; Android: opens automatically).
 3. The Vercel serverless function refreshes an access token with the owner's stored Spotify refresh token.
-4. It finds the Google Home in the owner's Spotify Connect devices (by `DEVICE_NAME`, falling back to the active device).
+4. It finds the Google Home in the owner's Spotify Connect devices (by `DEVICE_NAME`). If the speaker has dropped out of the list, it calls the home laptop's wake server (`WAKE_URL`), which wakes the speaker over the LAN, then looks again. It falls back to the active device.
 5. It starts the playlist, enables shuffle, then skips once so a random track plays first (and subsequent tracks stay shuffled).
 6. The guest sees a simple "Now playing" page.
 
 To change which playlist a tag plays, rewrite the URL on the tag — no code deploy needed.
 
-No always-on hardware is needed; Spotify's cloud delivers the command to the speaker.
+An idle Google Home disappears from Spotify Connect, and the cloud cannot wake it. An always-on laptop on the home Wi-Fi runs a small wake server (`speaker-keepalive`, outside this repo) published through Tailscale Funnel. See "Waking the speaker" below.
 
 ## Project structure
 
@@ -30,6 +30,7 @@ spotify-nfc/
 ├── .env.example
 ├── .gitignore
 ├── package.json       # "type": "module" so the api files can use ESM imports
+├── vercel.json        # gives /api/play 30 s so it can wait for a speaker wake
 └── IMPLEMENTATION.md
 ```
 
@@ -56,10 +57,20 @@ Runtime: Vercel Node.js serverless functions (Node 18+, global `fetch`). No depe
 | `DEVICE_NAME` | Exact speaker name as shown in Spotify's device picker |
 | `VOLUME_PERCENT` | Optional. 0–100; applied on every `/api/play` (not in the tag URL) |
 | `CRON_SECRET` | Long random string; required to call `/api/keepalive` (Vercel Cron sends it automatically when set) |
+| `WAKE_URL` | Home laptop wake server via Tailscale Funnel, e.g. `https://dan-laptop.tailXXXX.ts.net/wake` |
+| `WAKE_SECRET` | Same value as `WAKE_SECRET` in the laptop's `speaker-keepalive/.env` |
 
 After adding or changing any variable, redeploy (Deployments → ⋯ → Redeploy).
 
-## Keepalive cron (optional, best-effort)
+## Waking the speaker (home laptop)
+
+A Google Home is only listed in Spotify Connect while Spotify's receiver app runs on it, and that app quits about 30 s after launch unless playback starts. So the speaker is woken on demand, per tap:
+
+`/api/play` → speaker missing → `POST WAKE_URL` with `Authorization: Bearer WAKE_SECRET` → the laptop launches Spotify on the speaker over the LAN and responds once Spotify lists it (about 3–8 s) → `/api/play` starts the playlist immediately.
+
+If `WAKE_URL` isn't set, or the laptop is off, the tap shows "Speaker is asleep".
+
+## Keepalive cron (superseded by the wake server)
 
 `/api/keepalive` tries to keep `DEVICE_NAME` in Spotify's Connect list by transferring playback to it (without starting music) every few minutes. It **cannot wake** a Google Home that has already dropped off the list — only reduce how often that happens while the speaker is still visible. It will not steal playback if your phone/computer is actively playing.
 
