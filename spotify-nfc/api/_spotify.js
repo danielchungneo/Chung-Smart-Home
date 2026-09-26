@@ -66,12 +66,25 @@ export async function wakeSpeaker() {
   }
 }
 
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const ICON_PREV = `<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M6 6h2.2v12H6V6zm3.2 6 8.8 6.2V5.8L9.2 12z"/></svg>`;
+const ICON_NEXT = `<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M15.8 6H18v12h-2.2V6zM6 18.2V5.8L14.8 12 6 18.2z"/></svg>`;
+const ICON_PAUSE = `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z"/></svg>`;
+const ICON_PLAY = `<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13l11-6.5L8 5.5z"/></svg>`;
+
 const DANCING_PANDA = `
 <div class="stage" aria-hidden="true">
   <span class="note n1">♪</span>
   <span class="note n2">♫</span>
   <span class="note n3">♪</span>
-  <svg class="panda" viewBox="0 0 120 140" width="140" height="163">
+  <svg class="panda" viewBox="0 0 120 140" width="160" height="187">
     <ellipse class="shadow" cx="60" cy="132" rx="28" ry="6" fill="#000" opacity=".25"/>
     <g class="body">
       <ellipse cx="60" cy="95" rx="32" ry="28" fill="#f5f5f5"/>
@@ -102,68 +115,123 @@ const DANCING_PANDA = `
       </g>
     </g>
   </svg>
+  <p class="intro-label">Starting the vibe…</p>
 </div>`;
 
 const PLAYER = `
-<div class="track">
-  <img class="art" id="art" alt="" width="72" height="72" hidden>
-  <div class="track-text">
+<div class="player" id="player">
+  <div class="art-wrap">
+    <img class="art" id="art" alt="" width="220" height="220" hidden>
+    <div class="art-fallback" id="artFallback" aria-hidden="true">♪</div>
+  </div>
+  <div class="meta">
     <div class="song" id="song">Loading…</div>
     <div class="artist" id="artist"></div>
+    <div class="where" id="where"></div>
   </div>
-</div>
-<div class="controls" role="group" aria-label="Playback">
-  <button type="button" data-action="previous" aria-label="Previous">⏮</button>
-  <button type="button" class="main" data-action="toggle" aria-label="Play or pause" id="toggle">⏸</button>
-  <button type="button" data-action="next" aria-label="Next">⏭</button>
-</div>
-<div class="volume" role="group" aria-label="Volume">
-  <button type="button" data-action="voldown" aria-label="Volume down">−</button>
-  <span class="vol-label" id="vol">—</span>
-  <button type="button" data-action="volup" aria-label="Volume up">+</button>
+  <div class="controls" role="group" aria-label="Playback">
+    <button type="button" class="icon" data-action="previous" aria-label="Previous">${ICON_PREV}</button>
+    <button type="button" class="main" data-action="toggle" aria-label="Pause" id="toggle">${ICON_PAUSE}</button>
+    <button type="button" class="icon" data-action="next" aria-label="Next">${ICON_NEXT}</button>
+  </div>
+  <div class="volume" role="group" aria-label="Volume">
+    <button type="button" class="vol-btn" data-action="voldown" aria-label="Volume down">−</button>
+    <span class="vol-label" id="vol">—</span>
+    <button type="button" class="vol-btn" data-action="volup" aria-label="Volume up">+</button>
+  </div>
 </div>`;
 
-const PLAYER_SCRIPT = `
+function playerScript({ mock = false, message = '' } = {}) {
+  return `
 <script>
 (function () {
+  const mock = ${mock ? 'true' : 'false'};
+  const whereText = ${JSON.stringify(message)};
+  const ICON_PAUSE = ${JSON.stringify(ICON_PAUSE)};
+  const ICON_PLAY = ${JSON.stringify(ICON_PLAY)};
+
   const song = document.getElementById('song');
   const artist = document.getElementById('artist');
+  const where = document.getElementById('where');
   const art = document.getElementById('art');
+  const artFallback = document.getElementById('artFallback');
   const toggle = document.getElementById('toggle');
   const vol = document.getElementById('vol');
-  const stage = document.querySelector('.stage');
+  const intro = document.getElementById('intro');
+  const player = document.getElementById('player');
+  const shell = document.getElementById('shell');
+
+  where.textContent = whereText;
+
+  let playing = true;
+  let volume = 40;
+  const mockTrack = {
+    ok: true,
+    isPlaying: true,
+    volume: 40,
+    track: {
+      name: 'Le Festin',
+      artists: 'Camille, Michael Giacchino',
+      image: 'https://i.scdn.co/image/ab67616d0000b273c5649add07ed849d26c0e354',
+    },
+  };
+
+  function apply(d) {
+    if (!d.ok || !d.track) {
+      song.textContent = 'Nothing playing';
+      artist.textContent = '';
+      art.hidden = true;
+      artFallback.hidden = false;
+      return;
+    }
+    song.textContent = d.track.name;
+    artist.textContent = d.track.artists;
+    if (d.track.image) {
+      art.src = d.track.image;
+      art.hidden = false;
+      artFallback.hidden = true;
+    } else {
+      art.hidden = true;
+      artFallback.hidden = false;
+    }
+    playing = !!d.isPlaying;
+    toggle.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    toggle.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    shell && shell.classList.toggle('is-paused', !playing);
+    if (typeof d.volume === 'number') {
+      volume = d.volume;
+      vol.textContent = d.volume + '%';
+    }
+  }
 
   async function refresh() {
+    if (mock) {
+      mockTrack.isPlaying = playing;
+      mockTrack.volume = volume;
+      apply(mockTrack);
+      return;
+    }
     try {
       const r = await fetch('/api/now');
-      const d = await r.json();
-      if (!d.ok || !d.track) {
-        song.textContent = 'Nothing playing';
-        artist.textContent = '';
-        art.hidden = true;
-        return;
-      }
-      song.textContent = d.track.name;
-      artist.textContent = d.track.artists;
-      if (d.track.image) {
-        art.src = d.track.image;
-        art.hidden = false;
-      } else {
-        art.hidden = true;
-      }
-      toggle.textContent = d.isPlaying ? '⏸' : '▶';
-      toggle.setAttribute('aria-label', d.isPlaying ? 'Pause' : 'Play');
-      if (stage) stage.classList.toggle('paused', !d.isPlaying);
-      if (typeof d.volume === 'number') vol.textContent = d.volume + '%';
+      apply(await r.json());
     } catch (e) {
       song.textContent = 'Couldn’t load track';
     }
   }
 
   async function control(action) {
+    if (mock) {
+      if (action === 'toggle') playing = !playing;
+      if (action === 'volup') volume = Math.min(100, volume + 10);
+      if (action === 'voldown') volume = Math.max(0, volume - 10);
+      if (action === 'next') mockTrack.track.name = 'End Creditouilles';
+      if (action === 'previous') mockTrack.track.name = 'Le Festin';
+      await refresh();
+      return;
+    }
     try {
       await fetch('/api/control?action=' + encodeURIComponent(action));
-      await refresh();
+      setTimeout(refresh, 250);
     } catch (_) {}
   }
 
@@ -171,17 +239,66 @@ const PLAYER_SCRIPT = `
     btn.addEventListener('click', () => control(btn.dataset.action));
   });
 
+  function revealPlayer() {
+    if (!intro || !player) return;
+    intro.classList.add('fade-out');
+    player.classList.add('fade-in');
+    setTimeout(() => { intro.hidden = true; }, 700);
+  }
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) {
+    if (intro) intro.hidden = true;
+    if (player) player.classList.add('fade-in', 'show-now');
+  } else {
+    setTimeout(revealPlayer, 3000);
+  }
+
   refresh();
-  setInterval(refresh, 4000);
+  if (!mock) setInterval(refresh, 4000);
 })();
 </script>`;
+}
 
-export function page(title, message, { dance = false } = {}) {
-  const funCss = dance ? `
-  .stage{position:relative;width:180px;height:190px;margin:0 auto 1.2rem}
-  .stage.paused .body,.stage.paused .arm-l,.stage.paused .arm-r,
-  .stage.paused .leg-l,.stage.paused .leg-r,.stage.paused .head,
-  .stage.paused .shadow,.stage.paused .note{animation-play-state:paused}
+export function page(title, message, { dance = false, mock = false } = {}) {
+  if (!dance) {
+    return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;
+       background:radial-gradient(1200px 800px at 50% -10%,#2a4036 0%,#1c2a24 55%,#15201c 100%);
+       color:#e8efe9;font-family:"SF Pro Rounded",ui-rounded,system-ui,sans-serif;
+       text-align:center;padding:24px;box-sizing:border-box}
+  h1{font-size:2rem;margin:0 0 .4rem;font-weight:650;letter-spacing:-.02em}
+  p{font-size:1.05rem;opacity:.75;max-width:30ch;margin:0 auto;line-height:1.5}
+</style></head><body><div><h1>${esc(title)}</h1><p>${esc(message)}</p></div></body></html>`;
+  }
+
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title>
+<style>
+  :root{
+    --bg0:#15201c;--bg1:#1c2a24;--bg2:#2a4036;
+    --ink:#f2f7f3;--muted:#b7c7bc;--line:rgba(255,255,255,.08);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:grid;place-items:center;color:var(--ink);
+    background:radial-gradient(1000px 700px at 50% -20%,var(--bg2) 0%,var(--bg1) 48%,var(--bg0) 100%);
+    font-family:"SF Pro Rounded",ui-rounded,"Segoe UI",system-ui,sans-serif;
+    padding:28px 20px 40px;
+  }
+  .shell{width:min(100%,22rem);position:relative;min-height:28rem}
+  .intro,.player{width:100%;text-align:center}
+  .intro{position:absolute;inset:0;display:grid;place-content:center;gap:.5rem;
+         transition:opacity .65s ease,transform .65s ease}
+  .intro.fade-out{opacity:0;transform:scale(.96);pointer-events:none}
+  .player{opacity:0;transform:translateY(12px);transition:opacity .7s ease,transform .7s ease;
+          pointer-events:none}
+  .player.fade-in,.player.show-now{opacity:1;transform:none;pointer-events:auto}
+  .player.show-now{transition:none}
+
+  .stage{position:relative;width:180px;margin:0 auto}
   .panda{display:block;margin:0 auto;transform-origin:50% 85%}
   .body{transform-origin:60px 95px;animation:boogie .55s ease-in-out infinite}
   .arm-l{transform-origin:36px 78px;animation:wave-l .55s ease-in-out infinite}
@@ -192,24 +309,38 @@ export function page(title, message, { dance = false } = {}) {
   .shadow{animation:shadow-pulse .55s ease-in-out infinite}
   .note{position:absolute;font-size:1.6rem;color:#9fdfb3;opacity:0;
         animation:float-note 1.8s ease-in-out infinite}
-  .n1{left:8px;top:40px;animation-delay:0s}
+  .n1{left:8px;top:40px}
   .n2{right:4px;top:24px;animation-delay:.6s;font-size:1.35rem}
   .n3{left:28px;top:8px;animation-delay:1.1s;font-size:1.2rem}
-  .track{display:flex;align-items:center;gap:14px;justify-content:center;
-         margin:1.1rem auto .2rem;max-width:22rem;text-align:left}
-  .art{border-radius:12px;object-fit:cover;background:#24352e;flex-shrink:0}
-  .track-text{min-width:0}
-  .song{font-size:1.15rem;font-weight:600;line-height:1.25;margin:0;
-        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16rem}
-  .artist{font-size:.95rem;opacity:.7;margin:.15rem 0 0;
-          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16rem}
-  .controls,.volume{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:1.1rem}
-  .volume{margin-top:.75rem}
-  .vol-label{min-width:3.2rem;font-variant-numeric:tabular-nums;opacity:.85}
-  button{appearance:none;border:0;background:#2a3d34;color:#e8efe9;width:3rem;height:3rem;
-         border-radius:999px;font-size:1.15rem;cursor:pointer;line-height:1}
-  button.main{width:3.6rem;height:3.6rem;background:#3d6b52;font-size:1.35rem}
-  button:active{transform:scale(.94)}
+  .intro-label{margin:1rem 0 0;color:var(--muted);font-size:1rem;letter-spacing:.01em}
+
+  .art-wrap{position:relative;width:min(72vw,220px);aspect-ratio:1;margin:0 auto 1.35rem}
+  .art,.art-fallback{position:absolute;inset:0;width:100%;height:100%;border-radius:18px}
+  .art{object-fit:cover;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+  .art-fallback{display:grid;place-items:center;background:linear-gradient(145deg,#314a3e,#20332b);
+                font-size:3rem;color:#9fdfb3}
+  .meta{margin:0 0 1.6rem}
+  .song{font-size:1.35rem;font-weight:650;letter-spacing:-.02em;line-height:1.25;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .artist{margin-top:.35rem;font-size:1rem;color:var(--muted);
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .where{margin-top:.55rem;font-size:.85rem;color:var(--muted);opacity:.75}
+
+  .controls{display:flex;align-items:center;justify-content:center;gap:2rem;margin:0 0 1.35rem}
+  button{appearance:none;border:0;background:transparent;color:var(--ink);cursor:pointer;
+         padding:0;display:grid;place-items:center;transition:transform .12s ease,opacity .12s ease}
+  button:active{transform:scale(.92)}
+  button.icon{width:2.75rem;height:2.75rem;opacity:.92}
+  button.main{width:4.25rem;height:4.25rem;border-radius:999px;background:#fff;color:#1c2a24;
+              box-shadow:0 10px 24px rgba(0,0,0,.28)}
+  .shell.is-paused .main{/* same chrome when paused */}
+
+  .volume{display:flex;align-items:center;justify-content:center;gap:.85rem;
+          padding-top:.35rem;border-top:1px solid var(--line)}
+  .vol-btn{width:2.4rem;height:2.4rem;border-radius:999px;background:rgba(255,255,255,.06);
+           font-size:1.35rem;line-height:1;color:var(--ink)}
+  .vol-label{min-width:3.25rem;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.95rem}
+
   @keyframes boogie{
     0%,100%{transform:rotate(-6deg) translateY(0)}
     50%{transform:rotate(6deg) translateY(-10px)}
@@ -245,21 +376,13 @@ export function page(title, message, { dance = false } = {}) {
   }
   @media (prefers-reduced-motion:reduce){
     .body,.arm-l,.arm-r,.leg-l,.leg-r,.head,.shadow,.note{animation:none}
-  }` : '';
-
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title>
-<style>
-  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1c2a24;color:#e8efe9;
-       font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
-  h1{font-size:2.2rem;margin:0 0 .4rem;font-weight:700}
-  p{font-size:1.05rem;opacity:.8;max-width:30ch;margin:0 auto;line-height:1.5}
-  ${funCss}
-</style></head><body><div>
-${dance ? DANCING_PANDA : ''}
-<h1>${title}</h1><p>${message}</p>
-${dance ? PLAYER : ''}
+    .intro,.player{transition:none}
+  }
+</style></head><body>
+<div class="shell" id="shell">
+  <div class="intro" id="intro">${DANCING_PANDA}</div>
+  ${PLAYER}
 </div>
-${dance ? PLAYER_SCRIPT : ''}
+${playerScript({ mock, message })}
 </body></html>`;
 }

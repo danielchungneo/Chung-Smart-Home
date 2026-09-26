@@ -25,6 +25,7 @@ spotify-nfc/
 │   ├── play.js        # the endpoint the NFC tags point to; playlist ID comes from the URL
 │   ├── now.js         # current track / playing state for the Now playing page
 │   ├── control.js     # play/pause, skip, volume for the Now playing page
+│   ├── preview.js     # local UI preview with mock track (no Spotify)
 │   ├── keepalive.js   # optional: touch DEVICE_NAME so it stays in Spotify's device list
 │   ├── devices.js     # lists Spotify Connect devices
 │   ├── login.js       # one-time setup: redirect to Spotify authorization
@@ -37,6 +38,16 @@ spotify-nfc/
 ```
 
 Runtime: Vercel Node.js serverless functions (Node 18+, global `fetch`). No dependencies to install.
+
+## Local UI preview (no production deploy)
+
+From the `spotify-nfc` folder:
+
+```bash
+npx vercel dev --listen 3000
+```
+
+Then open [http://localhost:3000/api/preview](http://localhost:3000/api/preview). That page uses mock track data so you can inspect the panda → player transition and controls without hitting Spotify. For a real play against your speaker (uses `.env`), open `/api/play?playlist=…` on the same local server.
 
 ## Notes for Cursor
 
