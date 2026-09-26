@@ -84,7 +84,7 @@ const DANCING_PANDA = `
   <span class="note n1">♪</span>
   <span class="note n2">♫</span>
   <span class="note n3">♪</span>
-  <svg class="panda" viewBox="0 0 120 140" width="160" height="187">
+  <svg class="panda" viewBox="0 0 120 140" width="160" height="187" focusable="false">
     <ellipse class="shadow" cx="60" cy="132" rx="28" ry="6" fill="#000" opacity=".25"/>
     <g class="body">
       <ellipse cx="60" cy="95" rx="32" ry="28" fill="#f5f5f5"/>
@@ -274,32 +274,48 @@ export function page(title, message, { dance = false, mock = false } = {}) {
 </style></head><body><div><h1>${esc(title)}</h1><p>${esc(message)}</p></div></body></html>`;
   }
 
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!doctype html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>${esc(title)}</title>
 <style>
   :root{
     --bg0:#15201c;--bg1:#1c2a24;--bg2:#2a4036;
     --ink:#f2f7f3;--muted:#b7c7bc;--line:rgba(255,255,255,.08);
   }
-  *{box-sizing:border-box}
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{
+    margin:0;padding:0;width:100%;max-width:100%;
+    overflow-x:hidden;
+  }
   body{
-    margin:0;min-height:100vh;display:grid;place-items:center;color:var(--ink);
+    min-height:100dvh;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);
     background:radial-gradient(1000px 700px at 50% -20%,var(--bg2) 0%,var(--bg1) 48%,var(--bg0) 100%);
     font-family:"SF Pro Rounded",ui-rounded,"Segoe UI",system-ui,sans-serif;
-    padding:28px 20px 40px;
+    padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
   }
-  .shell{width:min(100%,22rem);position:relative;min-height:28rem}
-  .intro,.player{width:100%;text-align:center}
-  .intro{position:absolute;inset:0;display:grid;place-content:center;gap:.5rem;
-         transition:opacity .65s ease,transform .65s ease}
+  .shell{
+    width:100%;max-width:22rem;margin:0 auto;
+    position:relative;overflow:hidden;
+  }
+  .intro,.player{width:100%;max-width:100%;text-align:center}
+  .intro{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:.5rem;
+    transition:opacity .65s ease,transform .65s ease;
+  }
   .intro.fade-out{opacity:0;transform:scale(.96);pointer-events:none}
-  .player{opacity:0;transform:translateY(12px);transition:opacity .7s ease,transform .7s ease;
-          pointer-events:none}
+  .player{
+    opacity:0;transform:translateY(12px);
+    transition:opacity .7s ease,transform .7s ease;
+    pointer-events:none;padding:0 .25rem;
+  }
   .player.fade-in,.player.show-now{opacity:1;transform:none;pointer-events:auto}
   .player.show-now{transition:none}
 
-  .stage{position:relative;width:180px;margin:0 auto}
-  .panda{display:block;margin:0 auto;transform-origin:50% 85%}
+  .stage{position:relative;width:min(160px,70vw);margin:0 auto;overflow:hidden}
+  .panda{display:block;width:100%;height:auto;margin:0 auto;transform-origin:50% 85%}
   .body{transform-origin:60px 95px;animation:boogie .55s ease-in-out infinite}
   .arm-l{transform-origin:36px 78px;animation:wave-l .55s ease-in-out infinite}
   .arm-r{transform-origin:84px 78px;animation:wave-r .55s ease-in-out infinite}
@@ -307,39 +323,51 @@ export function page(title, message, { dance = false, mock = false } = {}) {
   .leg-r{transform-origin:78px 110px;animation:step-r .55s ease-in-out infinite}
   .head{transform-origin:60px 52px;animation:nod .55s ease-in-out infinite}
   .shadow{animation:shadow-pulse .55s ease-in-out infinite}
-  .note{position:absolute;font-size:1.6rem;color:#9fdfb3;opacity:0;
+  .note{position:absolute;font-size:1.4rem;color:#9fdfb3;opacity:0;
         animation:float-note 1.8s ease-in-out infinite}
   .n1{left:8px;top:40px}
-  .n2{right:4px;top:24px;animation-delay:.6s;font-size:1.35rem}
-  .n3{left:28px;top:8px;animation-delay:1.1s;font-size:1.2rem}
-  .intro-label{margin:1rem 0 0;color:var(--muted);font-size:1rem;letter-spacing:.01em}
+  .n2{right:4px;top:24px;animation-delay:.6s;font-size:1.2rem}
+  .n3{left:28px;top:8px;animation-delay:1.1s;font-size:1.1rem}
+  .intro-label{margin:1rem 0 0;color:var(--muted);font-size:.95rem;letter-spacing:.01em}
 
-  .art-wrap{position:relative;width:min(72vw,220px);aspect-ratio:1;margin:0 auto 1.35rem}
+  .art-wrap{
+    position:relative;width:min(58vw,200px);max-width:100%;
+    aspect-ratio:1;margin:0 auto 1.1rem;
+  }
   .art,.art-fallback{position:absolute;inset:0;width:100%;height:100%;border-radius:18px}
   .art{object-fit:cover;box-shadow:0 18px 40px rgba(0,0,0,.35)}
   .art-fallback{display:grid;place-items:center;background:linear-gradient(145deg,#314a3e,#20332b);
                 font-size:3rem;color:#9fdfb3}
-  .meta{margin:0 0 1.6rem}
-  .song{font-size:1.35rem;font-weight:650;letter-spacing:-.02em;line-height:1.25;
-        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .artist{margin-top:.35rem;font-size:1rem;color:var(--muted);
-          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .where{margin-top:.55rem;font-size:.85rem;color:var(--muted);opacity:.75}
+  .meta{margin:0 0 1.25rem;max-width:100%;padding:0 .5rem}
+  .song{font-size:clamp(1.1rem,4.5vw,1.35rem);font-weight:650;letter-spacing:-.02em;line-height:1.25;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .artist{margin-top:.35rem;font-size:.95rem;color:var(--muted);
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .where{margin-top:.5rem;font-size:.8rem;color:var(--muted);opacity:.75;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 
-  .controls{display:flex;align-items:center;justify-content:center;gap:2rem;margin:0 0 1.35rem}
+  .controls{display:flex;align-items:center;justify-content:center;gap:clamp(1.25rem,6vw,2rem);
+            margin:0 0 1.1rem;width:100%}
   button{appearance:none;border:0;background:transparent;color:var(--ink);cursor:pointer;
-         padding:0;display:grid;place-items:center;transition:transform .12s ease,opacity .12s ease}
+         padding:0;display:grid;place-items:center;transition:transform .12s ease,opacity .12s ease;
+         -webkit-tap-highlight-color:transparent}
   button:active{transform:scale(.92)}
-  button.icon{width:2.75rem;height:2.75rem;opacity:.92}
-  button.main{width:4.25rem;height:4.25rem;border-radius:999px;background:#fff;color:#1c2a24;
-              box-shadow:0 10px 24px rgba(0,0,0,.28)}
-  .shell.is-paused .main{/* same chrome when paused */}
+  button.icon{width:2.75rem;height:2.75rem;opacity:.92;flex:0 0 auto}
+  button.main{width:4rem;height:4rem;border-radius:999px;background:#fff;color:#1c2a24;
+              box-shadow:0 10px 24px rgba(0,0,0,.28);flex:0 0 auto}
+  button.main svg{width:28px;height:28px}
 
   .volume{display:flex;align-items:center;justify-content:center;gap:.85rem;
-          padding-top:.35rem;border-top:1px solid var(--line)}
+          padding-top:.35rem;border-top:1px solid var(--line);width:100%}
   .vol-btn{width:2.4rem;height:2.4rem;border-radius:999px;background:rgba(255,255,255,.06);
-           font-size:1.35rem;line-height:1;color:var(--ink)}
+           font-size:1.35rem;line-height:1;color:var(--ink);flex:0 0 auto}
   .vol-label{min-width:3.25rem;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.95rem}
+
+  @media (max-height:700px){
+    .art-wrap{width:min(48vw,160px);margin-bottom:.85rem}
+    .meta{margin-bottom:1rem}
+    .controls{margin-bottom:.85rem}
+  }
 
   @keyframes boogie{
     0%,100%{transform:rotate(-6deg) translateY(0)}
