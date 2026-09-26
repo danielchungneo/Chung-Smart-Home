@@ -10,7 +10,7 @@ Guests need no app, no Shortcut, no Wi-Fi, and no Spotify account.
 3. The Vercel serverless function refreshes an access token with the owner's stored Spotify refresh token.
 4. It finds the Google Home in the owner's Spotify Connect devices (by `DEVICE_NAME`). If the speaker has dropped out of the list, it calls the home laptop's wake server (`WAKE_URL`), which wakes the speaker over the LAN, then looks again. It falls back to the active device.
 5. It starts the playlist, enables shuffle, then skips once so a random track plays first (and subsequent tracks stay shuffled).
-6. The guest sees a simple "Now playing" page.
+6. The guest sees a "Now playing" page with the dancing panda, current track, and controls (play/pause, skip, volume).
 
 To change which playlist a tag plays, rewrite the URL on the tag — no code deploy needed.
 
@@ -23,6 +23,8 @@ spotify-nfc/
 ├── api/
 │   ├── _spotify.js    # shared helpers (underscore = not a public route on Vercel)
 │   ├── play.js        # the endpoint the NFC tags point to; playlist ID comes from the URL
+│   ├── now.js         # current track / playing state for the Now playing page
+│   ├── control.js     # play/pause, skip, volume for the Now playing page
 │   ├── keepalive.js   # optional: touch DEVICE_NAME so it stays in Spotify's device list
 │   ├── devices.js     # lists Spotify Connect devices
 │   ├── login.js       # one-time setup: redirect to Spotify authorization

@@ -27,6 +27,25 @@ export async function getDevices(token) {
   return data.devices || [];
 }
 
+export async function findTargetDevice(token) {
+  const devices = await getDevices(token);
+  const wanted = (process.env.DEVICE_NAME || '').toLowerCase();
+  return (
+    devices.find(d => d.name.toLowerCase() === wanted) ||
+    devices.find(d => d.is_active) ||
+    null
+  );
+}
+
+export async function getPlayback(token) {
+  const r = await fetch('https://api.spotify.com/v1/me/player', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (r.status === 204) return null;
+  if (!r.ok) return null;
+  return r.json();
+}
+
 // Asks the always-on home laptop (through its Tailscale Funnel URL) to wake
 // the Google Home over the LAN. The laptop replies once Spotify lists the
 // speaker again. Returns true on success, false if not configured or it failed.
@@ -85,9 +104,84 @@ const DANCING_PANDA = `
   </svg>
 </div>`;
 
+const PLAYER = `
+<div class="track">
+  <img class="art" id="art" alt="" width="72" height="72" hidden>
+  <div class="track-text">
+    <div class="song" id="song">Loading…</div>
+    <div class="artist" id="artist"></div>
+  </div>
+</div>
+<div class="controls" role="group" aria-label="Playback">
+  <button type="button" data-action="previous" aria-label="Previous">⏮</button>
+  <button type="button" class="main" data-action="toggle" aria-label="Play or pause" id="toggle">⏸</button>
+  <button type="button" data-action="next" aria-label="Next">⏭</button>
+</div>
+<div class="volume" role="group" aria-label="Volume">
+  <button type="button" data-action="voldown" aria-label="Volume down">−</button>
+  <span class="vol-label" id="vol">—</span>
+  <button type="button" data-action="volup" aria-label="Volume up">+</button>
+</div>`;
+
+const PLAYER_SCRIPT = `
+<script>
+(function () {
+  const song = document.getElementById('song');
+  const artist = document.getElementById('artist');
+  const art = document.getElementById('art');
+  const toggle = document.getElementById('toggle');
+  const vol = document.getElementById('vol');
+  const stage = document.querySelector('.stage');
+
+  async function refresh() {
+    try {
+      const r = await fetch('/api/now');
+      const d = await r.json();
+      if (!d.ok || !d.track) {
+        song.textContent = 'Nothing playing';
+        artist.textContent = '';
+        art.hidden = true;
+        return;
+      }
+      song.textContent = d.track.name;
+      artist.textContent = d.track.artists;
+      if (d.track.image) {
+        art.src = d.track.image;
+        art.hidden = false;
+      } else {
+        art.hidden = true;
+      }
+      toggle.textContent = d.isPlaying ? '⏸' : '▶';
+      toggle.setAttribute('aria-label', d.isPlaying ? 'Pause' : 'Play');
+      if (stage) stage.classList.toggle('paused', !d.isPlaying);
+      if (typeof d.volume === 'number') vol.textContent = d.volume + '%';
+    } catch (e) {
+      song.textContent = 'Couldn’t load track';
+    }
+  }
+
+  async function control(action) {
+    try {
+      await fetch('/api/control?action=' + encodeURIComponent(action));
+      await refresh();
+    } catch (_) {}
+  }
+
+  document.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => control(btn.dataset.action));
+  });
+
+  refresh();
+  setInterval(refresh, 4000);
+})();
+</script>`;
+
 export function page(title, message, { dance = false } = {}) {
   const funCss = dance ? `
   .stage{position:relative;width:180px;height:190px;margin:0 auto 1.2rem}
+  .stage.paused .body,.stage.paused .arm-l,.stage.paused .arm-r,
+  .stage.paused .leg-l,.stage.paused .leg-r,.stage.paused .head,
+  .stage.paused .shadow,.stage.paused .note{animation-play-state:paused}
   .panda{display:block;margin:0 auto;transform-origin:50% 85%}
   .body{transform-origin:60px 95px;animation:boogie .55s ease-in-out infinite}
   .arm-l{transform-origin:36px 78px;animation:wave-l .55s ease-in-out infinite}
@@ -101,6 +195,21 @@ export function page(title, message, { dance = false } = {}) {
   .n1{left:8px;top:40px;animation-delay:0s}
   .n2{right:4px;top:24px;animation-delay:.6s;font-size:1.35rem}
   .n3{left:28px;top:8px;animation-delay:1.1s;font-size:1.2rem}
+  .track{display:flex;align-items:center;gap:14px;justify-content:center;
+         margin:1.1rem auto .2rem;max-width:22rem;text-align:left}
+  .art{border-radius:12px;object-fit:cover;background:#24352e;flex-shrink:0}
+  .track-text{min-width:0}
+  .song{font-size:1.15rem;font-weight:600;line-height:1.25;margin:0;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16rem}
+  .artist{font-size:.95rem;opacity:.7;margin:.15rem 0 0;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16rem}
+  .controls,.volume{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:1.1rem}
+  .volume{margin-top:.75rem}
+  .vol-label{min-width:3.2rem;font-variant-numeric:tabular-nums;opacity:.85}
+  button{appearance:none;border:0;background:#2a3d34;color:#e8efe9;width:3rem;height:3rem;
+         border-radius:999px;font-size:1.15rem;cursor:pointer;line-height:1}
+  button.main{width:3.6rem;height:3.6rem;background:#3d6b52;font-size:1.35rem}
+  button:active{transform:scale(.94)}
   @keyframes boogie{
     0%,100%{transform:rotate(-6deg) translateY(0)}
     50%{transform:rotate(6deg) translateY(-10px)}
@@ -148,5 +257,9 @@ export function page(title, message, { dance = false } = {}) {
   ${funCss}
 </style></head><body><div>
 ${dance ? DANCING_PANDA : ''}
-<h1>${title}</h1><p>${message}</p></div></body></html>`;
+<h1>${title}</h1><p>${message}</p>
+${dance ? PLAYER : ''}
+</div>
+${dance ? PLAYER_SCRIPT : ''}
+</body></html>`;
 }
